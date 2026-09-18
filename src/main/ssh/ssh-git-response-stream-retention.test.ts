@@ -108,8 +108,8 @@ it('drops foreign frames instead of buffering them while the sentinel is pending
   const pending = requestGitStreamable(connection.mux, 'git.diff', { cwd: '/repo' })
   const payload = Buffer.from(JSON.stringify({ ok: 1 }))
   connection.feed(
-    // Why: a foreign seq-0 must not displace our own frame — with the old
-    // pending[] queue, enough foreign frames overflowed our own seq-0 out.
+    // Why: a frame that arrives before the sentinel installs our streamId is
+    // foreign by definition — dropped, not queued for a later drain.
     {
       jsonrpc: '2.0',
       method: 'git.responseChunk',
