@@ -33,6 +33,7 @@ export function createAutomationDispatchCompletion(args: {
   let dispatchMarked = false
   let pendingExitCode: number | null = null
   let pendingDone = false
+  let pendingPromptDeliveryFailed = false
   let completionMarked = false
   let contactLost = false
   let unsubscribeAgentStatus = (): void => {}
@@ -148,6 +149,41 @@ export function createAutomationDispatchCompletion(args: {
       console.error('[automations] Failed to persist late automation result:', error)
     })
   }
+  // Why: a prompt that never reached the agent is a proven failure, unlike a
+  // lost contact — leaving the run 'dispatched' would present a forever-idle
+  // agent as work in progress.
+  const markPromptDeliveryFailed = async (): Promise<void> => {
+    if (completionMarked) {
+      return
+    }
+    completionMarked = true
+    cleanupRunObservers()
+    try {
+      await args.markDispatchResult({
+        runId: args.run.id,
+        status: 'dispatch_failed',
+        workspaceId: args.worktree.id,
+        workspaceDisplayName: args.worktree.displayName,
+        outputSnapshot: getOutputSnapshot(),
+        precheckResult: args.precheckResult,
+        error: 'The automation prompt could not be delivered to the agent.'
+      })
+    } catch (error) {
+      args.releaseTerminalOwnership()
+      throw error
+    }
+    args.releaseTerminalOwnership()
+  }
+  const handlePromptDeliveryFailed = (): void => {
+    if (completionMarked) {
+      return
+    }
+    if (!dispatchMarked) {
+      pendingPromptDeliveryFailed = true
+      return
+    }
+    settleLateResult(markPromptDeliveryFailed())
+  }
   const handleAgentDone = (): void => {
     if (completionMarked) {
       return
@@ -244,6 +280,7 @@ export function createAutomationDispatchCompletion(args: {
     cleanupRunObservers,
     handleAgentDone,
     handleExit,
+    handlePromptDeliveryFailed,
     observeAgentStatus,
     setReuseDispatchTabRelease: (release: () => void) => {
       releaseReuseDispatchTab = release
@@ -253,7 +290,11 @@ export function createAutomationDispatchCompletion(args: {
     },
     settlePendingAfterDispatch: async () => {
       dispatchMarked = true
-      if (pendingDone) {
+      if (pendingPromptDeliveryFailed) {
+        // Why: a known-undelivered prompt outranks a `done`/exit that cannot
+        // reflect work the agent never received.
+        await markPromptDeliveryFailed()
+      } else if (pendingDone) {
         await markCompletionResult()
       } else if (pendingExitCode !== null) {
         await markExitResult(pendingExitCode)
