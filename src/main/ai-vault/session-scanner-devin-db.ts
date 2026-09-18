@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { wslGatedStat } from '../native-chat/wsl-transcript-fs-access'
 import { columnExists, tableExists } from '../opencode-usage/schema-helpers'
 import { readOpenCodeDatabase } from './session-scanner-opencode-sqlite-open'
 import type { SessionSidecarObservation } from './session-sidecar-stat'
@@ -63,10 +63,17 @@ export function devinSessionsDbPath(transcriptFilePath: string): string {
  * @param transcriptFilePath - A discovered Devin transcript path.
  * @returns Absolute path to sessions.db-wal when it exists, else sessions.db.
  */
-export function devinSessionsDbDependencyPath(transcriptFilePath: string): string {
+export async function devinSessionsDbDependencyPath(transcriptFilePath: string): Promise<string> {
   const dbPath = devinSessionsDbPath(transcriptFilePath)
   const walPath = `${dbPath}-wal`
-  return existsSync(walPath) ? walPath : dbPath
+  try {
+    await wslGatedStat(walPath, 'scan')
+    return walPath
+  } catch {
+    // Missing wal is the common case; a refused probe degrades to watching
+    // the db itself rather than taking the transcript down with it.
+    return dbPath
+  }
 }
 
 /**

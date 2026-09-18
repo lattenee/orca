@@ -129,10 +129,10 @@ describe('devinSessionsDbDependencyPath', () => {
     const cliDir = join(dir, 'cli')
     const transcriptPath = join(cliDir, 'transcripts', 'apricot.json')
     const dbPath = join(cliDir, 'sessions.db')
-    expect(devinSessionsDbDependencyPath(transcriptPath)).toBe(dbPath)
+    expect(await devinSessionsDbDependencyPath(transcriptPath)).toBe(dbPath)
     await mkdir(cliDir, { recursive: true })
     await writeFile(`${dbPath}-wal`, 'wal bytes')
-    expect(devinSessionsDbDependencyPath(transcriptPath)).toBe(`${dbPath}-wal`)
+    expect(await devinSessionsDbDependencyPath(transcriptPath)).toBe(`${dbPath}-wal`)
   })
 })
 
