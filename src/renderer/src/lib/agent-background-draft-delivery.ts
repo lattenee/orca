@@ -27,8 +27,15 @@ export function subscribeAgentBackgroundDraftDelivery(
     pendingDraftDeliveryResults.delete(tabId)
     // Why: microtask so a buffered result cannot fire before `subscribe`
     // returns — callers unsubscribe through the handle this returns.
-    queueMicrotask(() => listener(pending))
-    return () => {}
+    let active = true
+    queueMicrotask(() => {
+      if (active) {
+        listener(pending)
+      }
+    })
+    return () => {
+      active = false
+    }
   }
   let listeners = draftDeliveryListeners.get(tabId)
   if (!listeners) {

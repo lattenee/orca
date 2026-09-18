@@ -191,12 +191,16 @@ export async function handleAutomationDispatchRequest({
     terminalOwnership = result.terminalOwnership
     if (requireTuiAgentConfig(automation.agentId).promptInjectionMode === 'stdin-after-start') {
       // Why: a draft that never lands leaves an idle agent posing as a live
-      // run — delivery failure must reach the run's verdict.
+      // run — delivery failure must reach the run's verdict. Delivery retries
+      // outlive the launch await, so hold success verdicts until it resolves.
+      completion.expectPromptDelivery()
       const unsubscribeDraftDelivery = subscribeAgentBackgroundDraftDelivery(
         result.tabId,
         (delivered) => {
           unsubscribeDraftDelivery()
-          if (!delivered) {
+          if (delivered) {
+            completion.handlePromptDeliverySucceeded()
+          } else {
             completion.handlePromptDeliveryFailed()
           }
         }

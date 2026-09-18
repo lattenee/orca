@@ -93,4 +93,82 @@ describe('automation dispatch completion on prompt-delivery failure', () => {
 
     expect(markDispatchResult).toHaveBeenCalledTimes(1)
   })
+
+  it('holds a done signal until delivery reports, then completes', async () => {
+    const completion = await createCompletion()
+    completion.expectPromptDelivery()
+    await completion.settlePendingAfterDispatch()
+    markDispatchResult.mockClear()
+
+    completion.handleAgentDone()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(markDispatchResult).not.toHaveBeenCalled()
+
+    completion.handlePromptDeliverySucceeded()
+    await vi.waitFor(() => expect(markDispatchResult).toHaveBeenCalledOnce())
+    expect(markDispatchResult).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'completed' })
+    )
+  })
+
+  it('lets a late delivery failure outrank a done held while delivery was pending', async () => {
+    const completion = await createCompletion()
+    completion.expectPromptDelivery()
+    await completion.settlePendingAfterDispatch()
+    markDispatchResult.mockClear()
+
+    completion.handleAgentDone()
+    completion.handlePromptDeliveryFailed()
+
+    await vi.waitFor(() => expect(markDispatchResult).toHaveBeenCalledOnce())
+    expect(markDispatchResult).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'dispatch_failed' })
+    )
+  })
+
+  it('keeps a pre-dispatch done stashed through settle while delivery is pending', async () => {
+    const completion = await createCompletion()
+    completion.expectPromptDelivery()
+    completion.handleAgentDone()
+
+    await completion.settlePendingAfterDispatch()
+    expect(markDispatchResult).not.toHaveBeenCalled()
+
+    completion.handlePromptDeliveryFailed()
+    await vi.waitFor(() => expect(markDispatchResult).toHaveBeenCalledOnce())
+    expect(markDispatchResult).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'dispatch_failed' })
+    )
+  })
+
+  it('defers a clean exit while delivery is pending but not a proven failure', async () => {
+    const completion = await createCompletion()
+    completion.expectPromptDelivery()
+    await completion.settlePendingAfterDispatch()
+    markDispatchResult.mockClear()
+
+    completion.handleExit(0)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(markDispatchResult).not.toHaveBeenCalled()
+
+    completion.handlePromptDeliveryFailed()
+    await vi.waitFor(() => expect(markDispatchResult).toHaveBeenCalledOnce())
+    expect(markDispatchResult).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'dispatch_failed' })
+    )
+  })
+
+  it('marks a proven non-zero exit immediately even while delivery is pending', async () => {
+    const completion = await createCompletion()
+    completion.expectPromptDelivery()
+    await completion.settlePendingAfterDispatch()
+    markDispatchResult.mockClear()
+
+    completion.handleExit(1)
+
+    await vi.waitFor(() => expect(markDispatchResult).toHaveBeenCalledOnce())
+    expect(markDispatchResult).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'dispatch_failed' })
+    )
+  })
 })

@@ -109,6 +109,19 @@ describe('scheduleAgentBackgroundDraft', () => {
     expect(listener).toHaveBeenCalledWith(false)
   })
 
+  it('honors unsubscribing before a buffered result fires', async () => {
+    mocks.pasteDraftWhenAgentReady.mockResolvedValue(true)
+
+    scheduleAgentBackgroundDraft('tab-1', 'do the thing', 'devin')
+    await vi.advanceTimersByTimeAsync(0)
+
+    const listener = vi.fn()
+    subscribeAgentBackgroundDraftDelivery('tab-1', listener)()
+    await Promise.resolve()
+
+    expect(listener).not.toHaveBeenCalled()
+  })
+
   it('does not notify listeners of other tabs or unsubscribed listeners', async () => {
     mocks.pasteDraftWhenAgentReady.mockResolvedValue(true)
     const otherTab = vi.fn()
