@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import SyncDatabase from '../sqlite/sync-database'
 import { scanAiVaultSessions } from './session-scanner'
 import {
+  devinSessionsDbDependencyPath,
   devinSessionsDbPath,
   devinSessionsIndexForSidecar,
   resetDevinSessionsIndexCacheForTests
@@ -122,6 +123,19 @@ describe('devinSessionsDbPath', () => {
   })
 })
 
+describe('devinSessionsDbDependencyPath', () => {
+  it('points at sessions.db until a wal file appears beside it', async () => {
+    const dir = await tempDir('orca-devin-db-')
+    const cliDir = join(dir, 'cli')
+    const transcriptPath = join(cliDir, 'transcripts', 'apricot.json')
+    const dbPath = join(cliDir, 'sessions.db')
+    expect(devinSessionsDbDependencyPath(transcriptPath)).toBe(dbPath)
+    await mkdir(cliDir, { recursive: true })
+    await writeFile(`${dbPath}-wal`, 'wal bytes')
+    expect(devinSessionsDbDependencyPath(transcriptPath)).toBe(`${dbPath}-wal`)
+  })
+})
+
 describe('devinSessionsIndexForSidecar', () => {
   it('reads rows keyed by session id with unix seconds as ISO strings', async () => {
     const dir = await tempDir('orca-devin-db-')
@@ -210,6 +224,29 @@ describe('devinSessionsIndexForSidecar', () => {
     const { index, unreadable } = devinSessionsIndexForSidecar(await sidecarOf(dbPath))
     expect(index).toBeNull()
     expect(unreadable).toBe(true)
+  })
+
+  it('opens the db for a wal observation and re-reads when the wal stat moves', async () => {
+    const dir = await tempDir('orca-devin-db-')
+    const dbPath = join(dir, 'sessions.db')
+    const walPath = `${dbPath}-wal`
+    writeDevinSessionsDb(dbPath, [{ id: 'apricot', title: 'old' }])
+    const dbStatBefore = await stat(dbPath)
+    await writeFile(walPath, 'wal-v1')
+
+    const first = devinSessionsIndexForSidecar(await sidecarOf(walPath))
+    expect(first.unreadable).toBe(false)
+    expect(first.index?.get('apricot')?.title).toBe('old')
+
+    // A wal-mode write can leave the db stat untouched; restore it so only
+    // the wal observation differs between reads.
+    writeDevinSessionsDb(dbPath, [{ id: 'apricot', title: 'new' }])
+    await utimes(dbPath, dbStatBefore.atimeMs / 1000, dbStatBefore.mtimeMs / 1000)
+    await writeFile(walPath, 'wal-v2-longer')
+
+    const second = devinSessionsIndexForSidecar(await sidecarOf(walPath))
+    expect(second.unreadable).toBe(false)
+    expect(second.index?.get('apricot')?.title).toBe('new')
   })
 })
 

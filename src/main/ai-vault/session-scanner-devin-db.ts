@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { columnExists, tableExists } from '../opencode-usage/schema-helpers'
 import { readOpenCodeDatabase } from './session-scanner-opencode-sqlite-open'
@@ -55,6 +56,28 @@ export function devinSessionsDbPath(transcriptFilePath: string): string {
 }
 
 /**
+ * The file whose stat should drive re-enrichment. In WAL mode, committed rows
+ * sit in sessions.db-wal while sessions.db keeps its stat until checkpoint, so
+ * a present wal is the fresher signal; a clean-close db has no wal and its own
+ * stat carries the change.
+ * @param transcriptFilePath - A discovered Devin transcript path.
+ * @returns Absolute path to sessions.db-wal when it exists, else sessions.db.
+ */
+export function devinSessionsDbDependencyPath(transcriptFilePath: string): string {
+  const dbPath = devinSessionsDbPath(transcriptFilePath)
+  const walPath = `${dbPath}-wal`
+  return existsSync(walPath) ? walPath : dbPath
+}
+
+/**
+ * The db a dependency observation actually belongs to: the sidecar may point
+ * at sessions.db-wal, but SQLite is always opened on sessions.db itself.
+ */
+function devinSessionsDbPathForSidecarPath(sidecarPath: string): string {
+  return sidecarPath.endsWith('-wal') ? sidecarPath.slice(0, -'-wal'.length) : sidecarPath
+}
+
+/**
  * The sessions.db index for a discovery-observed sidecar, or why there is
  * none. Never throws: a missing/db-less root is `index: null`, an observed db
  * that could not be read is `unreadable` (so the caller records the sidecar as
@@ -73,21 +96,22 @@ export function devinSessionsIndexForSidecar(sidecar: SessionSidecarObservation 
     // share. Retry next scan instead of paying it per transcript.
     return { index: null, unreadable: true }
   }
-  const cached = indexCache.get(sidecar.path)
+  const dbPath = devinSessionsDbPathForSidecarPath(sidecar.path)
+  const cached = indexCache.get(dbPath)
   if (cached && cached.mtimeMs === sidecar.mtimeMs && cached.sizeBytes === sidecar.sizeBytes) {
-    indexCache.delete(sidecar.path)
-    indexCache.set(sidecar.path, cached)
+    indexCache.delete(dbPath)
+    indexCache.set(dbPath, cached)
     return { index: cached.index, unreadable: false }
   }
   try {
-    const index = readDevinSessionsIndex(sidecar.path)
+    const index = readDevinSessionsIndex(dbPath)
     if (indexCache.size >= INDEX_CACHE_LIMIT) {
       const oldest = indexCache.keys().next().value
       if (oldest !== undefined) {
         indexCache.delete(oldest)
       }
     }
-    indexCache.set(sidecar.path, {
+    indexCache.set(dbPath, {
       mtimeMs: sidecar.mtimeMs,
       sizeBytes: sidecar.sizeBytes,
       index

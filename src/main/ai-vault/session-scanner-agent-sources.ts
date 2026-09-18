@@ -10,7 +10,7 @@ import {
   isClineSessionMetadataPath
 } from './session-scanner-cline-parser'
 import { cursorChatMetaPath } from './session-scanner-cursor-chat-meta'
-import { devinSessionsDbPath } from './session-scanner-devin-db'
+import { devinSessionsDbDependencyPath } from './session-scanner-devin-db'
 import { resolveKimiSessionsDir } from './session-scanner-kimi-paths'
 import { OMP_SESSION_ARTIFACT_DIR_PATTERN } from './session-scanner-omp-subagent-transcripts'
 import { claudeProjectsRootDirs, OMP_SESSIONS_DIR, sessionRootDirs } from './session-scanner-roots'
@@ -171,7 +171,7 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
     // Why: one sessions.db indexes the whole transcripts dir from beside it;
     // tracking its stat lets a db-only change (title edit, hide) re-merge
     // sessions without re-reading any transcript.
-    contentDependencyPath: devinSessionsDbPath
+    contentDependencyPath: devinSessionsDbDependencyPath
   },
   hermes: {
     rootDirs: (options, wslHomeDirs) =>
