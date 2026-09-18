@@ -93,6 +93,40 @@ describe('parseDevinSessionFile', () => {
     })
   })
 
+  it('extracts text from an array-valued ATIF message', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'orca-devin-parser-'))
+    tempDirs.push(dir)
+    const path = join(dir, 'array-message.json')
+    const mtimeMs = Date.now()
+    await writeFile(
+      path,
+      JSON.stringify({
+        session_id: 'array-message',
+        agent: {},
+        steps: [
+          {
+            timestamp: '2026-05-26T00:00:00Z',
+            source: 'user',
+            message: [{ text: 'First part' }, { text: 'second part' }]
+          }
+        ]
+      })
+    )
+
+    const session = await parseDevinSessionFile({
+      path,
+      mtimeMs,
+      modifiedAt: new Date(mtimeMs).toISOString()
+    })
+
+    expect(session?.messageCount).toBe(1)
+    expect(session?.title).toBe('First part second part')
+    expect(session?.previewMessages[0]).toMatchObject({
+      role: 'user',
+      text: 'First part second part'
+    })
+  })
+
   it('parses a real ATIF-v1.7 transcript', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'orca-devin-parser-'))
     tempDirs.push(dir)
