@@ -149,5 +149,9 @@ function readDevinSessionsIndex(dbPath: string): DevinSessionsIndex {
 
 function unixSecondsToIso(value: unknown): string | null {
   const seconds = numberValue(value)
-  return seconds > 0 ? new Date(seconds * 1000).toISOString() : null
+  if (seconds <= 0) {
+    return null
+  }
+  const date = new Date(seconds * 1000)
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null
 }

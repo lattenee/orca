@@ -146,7 +146,8 @@ export function consumeDevinSessionStep(accumulator: SessionAccumulator, step: u
   // ATIF `source` is 'user' | 'agent' | 'system'; system steps are setup noise
   // that must not count as messages or feed title/preview.
   const source = extractString(stepRecord.source)
-  const isUser = source === 'user' || metadata?.is_user_input === true
+  const isSystem = source === 'system'
+  const isUser = !isSystem && (source === 'user' || metadata?.is_user_input === true)
   if (isUser) {
     accumulator.messageCount++
     const text =
@@ -159,9 +160,8 @@ export function consumeDevinSessionStep(accumulator: SessionAccumulator, step: u
     }
     addPreviewContent(accumulator, 'user', text ?? stepRecord.content)
   } else if (
-    source === 'agent' ||
-    extractString(stepRecord.role) === 'assistant' ||
-    (source !== 'system' && stepRecord.tool_calls)
+    !isSystem &&
+    (source === 'agent' || extractString(stepRecord.role) === 'assistant' || stepRecord.tool_calls)
   ) {
     accumulator.messageCount++
     addPreviewContent(
