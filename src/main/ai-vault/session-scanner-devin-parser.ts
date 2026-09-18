@@ -87,7 +87,8 @@ function extractDevinStepText(step: Record<string, unknown>): string | null {
   if (message) {
     return extractContentText(message.content) ?? extractString(message.content)
   }
-  return extractString(step.text)
+  // ATIF also allows `message` as an array of content parts.
+  return extractContentText(step.message) ?? extractString(step.text)
 }
 
 // Each bucket resolves from the first source that reports it. ATIF
@@ -116,8 +117,9 @@ function firstDevinMetricValue(
       continue
     }
     for (const key of keys) {
-      const value = numberValue(source[key])
-      if (value > 0) {
+      const rawValue = source[key]
+      const value = numberValue(rawValue)
+      if (value > 0 || (value === 0 && typeof rawValue === 'number' && Number.isFinite(rawValue))) {
         return value
       }
     }
