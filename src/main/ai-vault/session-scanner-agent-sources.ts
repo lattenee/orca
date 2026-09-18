@@ -10,6 +10,8 @@ import {
   isClineSessionMetadataPath
 } from './session-scanner-cline-parser'
 import { cursorChatMetaPath } from './session-scanner-cursor-chat-meta'
+import { resolveDevinTranscriptsDir } from '../devin/devin-cli-data-dir'
+import { devinSessionsDbPath } from './session-scanner-devin-db'
 import { resolveKimiSessionsDir } from './session-scanner-kimi-paths'
 import { OMP_SESSION_ARTIFACT_DIR_PATTERN } from './session-scanner-omp-subagent-transcripts'
 import { claudeProjectsRootDirs, OMP_SESSIONS_DIR, sessionRootDirs } from './session-scanner-roots'
@@ -42,14 +44,7 @@ const PI_SESSIONS_DIR = normalizeAgentSessionsDir(
 // dedicated sessions-root override, so resolution differs from Pi/OMP in shape
 // as well as in variable name.
 const PRIME_AGENT_SESSIONS_DIR = primeAgentSessionsDirFromEnv()
-// Why: Devin ATIF transcripts are stored under <DEVIN_HOME>/transcripts.
-const DEVIN_TRANSCRIPTS_DIR = join(
-  resolveAbsoluteDirOverride(
-    process.env.DEVIN_HOME,
-    join(homedir(), '.local', 'share', 'devin', 'cli')
-  ),
-  'transcripts'
-)
+const DEVIN_TRANSCRIPTS_DIR = resolveDevinTranscriptsDir()
 const DROID_SESSIONS_DIR = join(homedir(), '.factory', 'sessions')
 const DROID_PROJECTS_DIR = join(homedir(), '.factory', 'projects')
 const CLINE_SESSIONS_DIR =
@@ -90,7 +85,10 @@ type AiVaultAgentSourceTable = Record<AiVaultDeletableAgent, AiVaultAgentSource>
 export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
   claude: {
     rootDirs: (options, wslHomeDirs) =>
-      claudeProjectsRootDirs({ claudeProjectsDir: options.claudeProjectsDir, wslHomeDirs }),
+      claudeProjectsRootDirs({
+        claudeProjectsDir: options.claudeProjectsDir,
+        wslHomeDirs
+      }),
     extensions: ['.jsonl'],
     // Why: Task subagent transcripts under `<session>/subagents/` share the parent
     // sessionId and aren't independently resumable, so they'd just duplicate the
@@ -156,7 +154,11 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
         'cli',
         'transcripts'
       ]),
-    extensions: ['.json']
+    extensions: ['.json'],
+    // Why: one sessions.db indexes the whole transcripts dir from beside it;
+    // tracking its stat lets a db-only change (title edit, hide) re-merge
+    // sessions without re-reading any transcript.
+    contentDependencyPath: devinSessionsDbPath
   },
   hermes: {
     rootDirs: (options, wslHomeDirs) =>
