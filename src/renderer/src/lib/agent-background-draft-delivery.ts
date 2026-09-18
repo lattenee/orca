@@ -70,33 +70,39 @@ export function scheduleAgentBackgroundDraft(
   pendingDraftDeliveryResults.delete(tabId)
   void (async () => {
     let delivered = false
-    for (
-      let attempt = 0;
-      attempt < BACKGROUND_DRAFT_DELIVERY_ATTEMPTS && !delivered;
-      attempt += 1
-    ) {
-      if (attempt > 0) {
-        await new Promise<void>((resolve) =>
-          window.setTimeout(resolve, BACKGROUND_DRAFT_RETRY_DELAY_MS)
-        )
-      }
-      let timedOut = false
-      delivered = await pasteDraftWhenAgentReady({
-        tabId,
-        content,
-        agent,
-        submit: true,
-        onTimeout: () => {
-          timedOut = true
+    try {
+      for (
+        let attempt = 0;
+        attempt < BACKGROUND_DRAFT_DELIVERY_ATTEMPTS && !delivered;
+        attempt += 1
+      ) {
+        if (attempt > 0) {
+          await new Promise<void>((resolve) =>
+            window.setTimeout(resolve, BACKGROUND_DRAFT_RETRY_DELAY_MS)
+          )
         }
-      })
-      if (!delivered && !timedOut) {
-        break
+        let timedOut = false
+        delivered = await pasteDraftWhenAgentReady({
+          tabId,
+          content,
+          agent,
+          submit: true,
+          onTimeout: () => {
+            timedOut = true
+          }
+        })
+        if (!delivered && !timedOut) {
+          break
+        }
       }
+    } catch (error) {
+      console.error('[automations] Background draft delivery threw:', error)
     }
+    // Why: an armed delivery gate awaits this verdict — a thrown paste must
+    // not strand it.
+    notifyDraftDelivery(tabId, delivered)
     if (!delivered) {
       showAutomationPromptNotSentToast(agent)
     }
-    notifyDraftDelivery(tabId, delivered)
   })()
 }

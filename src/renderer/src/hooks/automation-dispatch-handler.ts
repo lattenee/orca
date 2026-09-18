@@ -11,7 +11,6 @@ import type {
   AutomationDispatchRequest,
   AutomationDispatchResult
 } from '../../../shared/automations-types'
-import { requireTuiAgentConfig } from '../../../shared/require-tui-agent-config'
 import { createAutomationDispatchCompletion } from './automation-dispatch-completion'
 import {
   prepareAutomationDispatchWorkspace,
@@ -189,10 +188,12 @@ export async function handleAutomationDispatchRequest({
       throw new Error('Unable to build an agent launch plan.')
     }
     terminalOwnership = result.terminalOwnership
-    if (requireTuiAgentConfig(automation.agentId).promptInjectionMode === 'stdin-after-start') {
+    if (result.scheduledDraftDelivery) {
       // Why: a draft that never lands leaves an idle agent posing as a live
       // run — delivery failure must reach the run's verdict. Delivery retries
       // outlive the launch await, so hold success verdicts until it resolves.
+      // Arming mirrors the launch's schedule condition: with no draft queued
+      // (a blank prompt), no verdict would ever arrive.
       completion.expectPromptDelivery()
       const unsubscribeDraftDelivery = subscribeAgentBackgroundDraftDelivery(
         result.tabId,

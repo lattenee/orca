@@ -79,6 +79,22 @@ describe('scheduleAgentBackgroundDraft', () => {
 
   afterEach(() => cleanup())
 
+  it('still resolves the delivery verdict when a paste attempt throws', async () => {
+    // An armed dispatch gate awaits this verdict — a thrown paste must not
+    // strand it (the run would wait on a notification that never arrives).
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.pasteDraftWhenAgentReady.mockRejectedValue(new Error('pty write failed'))
+    const listener = vi.fn()
+    cleanup = subscribeAgentBackgroundDraftDelivery('tab-1', listener)
+
+    scheduleAgentBackgroundDraft('tab-1', 'do the thing', 'devin')
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(listener).toHaveBeenCalledWith(false)
+    expect(mocks.showAutomationPromptNotSentToast).toHaveBeenCalledTimes(1)
+    errorSpy.mockRestore()
+  })
+
   it('does not retry a failed write — the composer may already hold the text', async () => {
     // pasteDraftWhenAgentReady returning false WITHOUT a timeout means a paste
     // was attempted; retrying could submit the prompt twice.
