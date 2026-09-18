@@ -102,8 +102,13 @@ export function upsertWorkingClaudeSubagent(
     return
   }
   // Why: beyond the wire cap extra rows would be invisible anyway; idle
-  // teammates are the only safe eviction — never displace a working child.
-  if (roster.size >= AGENT_STATUS_MAX_SUBAGENTS && !evictOldestIdleClaudeSubagent(roster)) {
+  // teammates evict first, then stale working rows — a stale row can't gate
+  // the pane, so it yields its slot before a live child is refused (#21327).
+  if (
+    roster.size >= AGENT_STATUS_MAX_SUBAGENTS &&
+    !evictOldestIdleClaudeSubagent(roster) &&
+    !evictOldestStaleWorkingClaudeSubagent(roster, now)
+  ) {
     return
   }
   roster.set(id, {
@@ -122,6 +127,27 @@ function evictOldestIdleClaudeSubagent(roster: ClaudeSubagentRoster): boolean {
     if (tracked.state === 'idle' && tracked.startedAt < oldestStartedAt) {
       oldestId = id
       oldestStartedAt = tracked.startedAt
+    }
+  }
+  if (oldestId === null) {
+    return false
+  }
+  roster.delete(oldestId)
+  return true
+}
+
+/** Never displaces a live working child — only rows already too old to gate. */
+function evictOldestStaleWorkingClaudeSubagent(roster: ClaudeSubagentRoster, now: number): boolean {
+  let oldestId: string | null = null
+  let oldestBasis = Infinity
+  for (const [id, tracked] of roster) {
+    if (tracked.state !== 'working' || claudeSubagentWorkingIsLive(tracked, now)) {
+      continue
+    }
+    const basis = tracked.workingSince ?? tracked.startedAt
+    if (basis < oldestBasis) {
+      oldestId = id
+      oldestBasis = basis
     }
   }
   if (oldestId === null) {

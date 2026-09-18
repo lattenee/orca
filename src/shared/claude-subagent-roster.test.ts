@@ -134,6 +134,30 @@ describe('claude-subagent-roster', () => {
     expect(claudeRosterHasWorkingSubagent(roster, revivedAt + 1000)).toBe(true)
   })
 
+  it('evicts the oldest stale working row when the roster is full so a live child still tracks', () => {
+    const roster: ClaudeSubagentRoster = new Map()
+    const now = 100 + CLAUDE_SUBAGENT_WORKING_STALE_AFTER_MS
+    for (let i = 0; i < AGENT_STATUS_MAX_SUBAGENTS; i++) {
+      roster.set(`stale-${i}`, { state: 'working', startedAt: 100 + i, workingSince: 100 + i })
+    }
+    // Why: a roster full of lost children must not refuse a real new
+    // SubagentStart — refusing would leave the pane 'done' while a child runs.
+    upsertWorkingClaudeSubagent(roster, 'alive', {}, now)
+    expect(roster.has('alive')).toBe(true)
+    expect(roster.has('stale-0')).toBe(false)
+    expect(roster.size).toBe(AGENT_STATUS_MAX_SUBAGENTS)
+  })
+
+  it('still refuses a new row when every slot is a live working child', () => {
+    const roster: ClaudeSubagentRoster = new Map()
+    const now = 1000
+    for (let i = 0; i < AGENT_STATUS_MAX_SUBAGENTS; i++) {
+      roster.set(`live-${i}`, { state: 'working', startedAt: 100, workingSince: 900 })
+    }
+    upsertWorkingClaudeSubagent(roster, 'overflow', {}, now)
+    expect(roster.has('overflow')).toBe(false)
+  })
+
   it('expires a legacy working row without workingSince by its startedAt', () => {
     const roster: ClaudeSubagentRoster = new Map([
       ['a1', { state: 'working' as const, startedAt: 100 }]
