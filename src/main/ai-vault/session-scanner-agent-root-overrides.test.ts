@@ -106,7 +106,9 @@ describe('agent scan roots from environment overrides', () => {
       DEVIN_HOME: '',
       [process.platform === 'win32' ? 'APPDATA' : 'XDG_DATA_HOME']: dataDir
     })
-    expect(roots).toEqual([join(dataDir, 'devin', 'cli', 'transcripts')])
+    expect(roots).toEqual(
+      ['transcripts', 'agent_logs'].map((dir) => join(dataDir, 'devin', 'cli', dir))
+    )
   })
 
   it('finds Devin transcripts when the platform data variable is empty', async () => {
@@ -119,7 +121,22 @@ describe('agent scan roots from environment overrides', () => {
       process.platform === 'win32'
         ? join(homedir(), 'AppData', 'Roaming')
         : join(homedir(), '.local', 'share')
-    expect(roots).toEqual([join(dataDir, 'devin', 'cli', 'transcripts')])
+    expect(roots).toEqual(
+      ['transcripts', 'agent_logs'].map((dir) => join(dataDir, 'devin', 'cli', dir))
+    )
+  })
+
+  it('keeps an explicit transcript root isolated and discovers both WSL layouts', async () => {
+    const { AI_VAULT_AGENT_SOURCES } = await import('./session-scanner-agent-sources')
+    const custom = join(homedir(), 'custom-devin')
+    const wslHome = join(homedir(), 'wsl-home')
+    expect(
+      AI_VAULT_AGENT_SOURCES.devin?.rootDirs({ devinTranscriptsDir: custom }, [wslHome])
+    ).toEqual([
+      custom,
+      join(wslHome, '.local', 'share', 'devin', 'cli', 'transcripts'),
+      join(wslHome, '.local', 'share', 'devin', 'cli', 'agent_logs')
+    ])
   })
 
   for (const testCase of CASES) {

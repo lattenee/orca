@@ -90,6 +90,7 @@ export function remoteSessionSources(
       parseHermesSessionContent
     ),
     remoteDevinSource(remoteHome, hostPlatform),
+    remoteDevinSource(remoteHome, hostPlatform, 'agent_logs'),
     jsonlSource('pi', remoteHome, hostPlatform, remotePiSessionsSegments(), piParser),
     {
       ...jsonlSource('omp', remoteHome, hostPlatform, remoteOmpSessionsSegments(), ompParser),

@@ -159,14 +159,21 @@ export const AI_VAULT_AGENT_SOURCES: AiVaultAgentSourceTable = {
     filePredicate: (filePath) => basename(filePath) === 'summary.json'
   },
   devin: {
-    rootDirs: (options, wslHomeDirs) =>
-      sessionRootDirs(options.devinTranscriptsDir ?? DEVIN_TRANSCRIPTS_DIR, wslHomeDirs, [
+    rootDirs: (options, wslHomeDirs) => [
+      ...sessionRootDirs(options.devinTranscriptsDir ?? DEVIN_TRANSCRIPTS_DIR, wslHomeDirs, [
         '.local',
         'share',
         'devin',
         'cli',
         'transcripts'
       ]),
+      // Devin 3000.10.31 exports ATIF to agent_logs by default.
+      ...(options.devinTranscriptsDir ? [] : [join(dirname(DEVIN_TRANSCRIPTS_DIR), 'agent_logs')]),
+      ...wslHomeDirs.map((homeDir) =>
+        join(homeDir, '.local', 'share', 'devin', 'cli', 'agent_logs')
+      )
+    ],
+    mergeRootDiscoveries: true,
     extensions: ['.json'],
     // Why: one sessions.db indexes the whole transcripts dir from beside it;
     // tracking its stat lets a db-only change (title edit, hide) re-merge

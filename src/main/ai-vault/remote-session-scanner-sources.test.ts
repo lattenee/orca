@@ -3,10 +3,11 @@ import { getRemoteHostPlatform, type RemoteHostPlatform } from '../ssh/ssh-remot
 import type { RelayPlatform } from '../ssh/relay-protocol'
 import { remoteSessionSources } from './remote-session-scanner-sources'
 
-function devinRootDir(relayPlatform: RelayPlatform, remoteHome: string): string | undefined {
+function devinRootDirs(relayPlatform: RelayPlatform, remoteHome: string): string[] {
   const hostPlatform: RemoteHostPlatform = getRemoteHostPlatform(relayPlatform)
-  return remoteSessionSources(remoteHome, hostPlatform).find((source) => source.agent === 'devin')
-    ?.rootDir
+  return remoteSessionSources(remoteHome, hostPlatform)
+    .filter((source) => source.agent === 'devin')
+    .map((source) => source.rootDir)
 }
 
 describe('remoteSessionSources devin transcripts root', () => {
@@ -27,6 +28,9 @@ describe('remoteSessionSources devin transcripts root', () => {
       expected: '/Users/dev/.local/share/devin/cli/transcripts'
     }
   ])('resolves $expected on $relayPlatform', ({ relayPlatform, remoteHome, expected }) => {
-    expect(devinRootDir(relayPlatform, remoteHome)).toBe(expected)
+    expect(devinRootDirs(relayPlatform, remoteHome)).toEqual([
+      expected,
+      expected.replace(/transcripts$/, 'agent_logs')
+    ])
   })
 })

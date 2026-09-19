@@ -6,22 +6,24 @@ import { parseDevinSessionContent } from './session-scanner-devin-parser'
 
 // Why: Devin CLI writes transcripts under %APPDATA% on a Windows host and
 // ~/.local/share on posix ones.
-function remoteDevinTranscriptsSegments(hostPlatform: RemoteHostPlatform): string[] {
+function remoteDevinDataSegments(hostPlatform: RemoteHostPlatform): string[] {
   return hostPlatform.os === 'win32'
-    ? ['AppData', 'Roaming', 'devin', 'cli', 'transcripts']
-    : ['.local', 'share', 'devin', 'cli', 'transcripts']
+    ? ['AppData', 'Roaming', 'devin', 'cli']
+    : ['.local', 'share', 'devin', 'cli']
 }
 
 export function remoteDevinSource(
   remoteHome: string,
-  hostPlatform: RemoteHostPlatform
+  hostPlatform: RemoteHostPlatform,
+  directory: 'transcripts' | 'agent_logs' = 'transcripts'
 ): RemoteSessionSource {
   return {
     agent: 'devin',
     rootDir: joinRemotePath(
       hostPlatform,
       remoteHome,
-      ...remoteDevinTranscriptsSegments(hostPlatform)
+      ...remoteDevinDataSegments(hostPlatform),
+      directory
     ),
     extensions: ['.json'],
     ...remoteSessionDocumentParsers('devin'),

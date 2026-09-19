@@ -365,12 +365,15 @@ describe('enrichSessionFromSidecar for devin', () => {
 })
 
 describe('devin sessions.db through the scan', () => {
-  async function writeDevinVault(dir: string): Promise<{ transcriptsDir: string; dbPath: string }> {
+  async function writeDevinVault(
+    dir: string,
+    directory = 'transcripts'
+  ): Promise<{ transcriptsDir: string; dbPath: string }> {
     const cliDir = join(dir, 'devin-cli')
-    const transcriptsDir = join(cliDir, 'transcripts')
+    const transcriptsDir = join(cliDir, directory)
     await mkdir(transcriptsDir, { recursive: true })
     await writeFile(
-      join(transcriptsDir, 'shown.json'),
+      join(transcriptsDir, 'devin-shown.json'),
       JSON.stringify({ session_id: 'shown', steps: [] })
     )
     await writeFile(
@@ -392,20 +395,23 @@ describe('devin sessions.db through the scan', () => {
     return { transcriptsDir, dbPath }
   }
 
-  it('enriches listed devin sessions and excludes hidden ones', async () => {
-    const root = await tempDir('orca-devin-scan-')
-    const { transcriptsDir } = await writeDevinVault(root)
-    const result = await scanAiVaultSessions({
-      ...isolatedScanRoots(root),
-      devinTranscriptsDir: transcriptsDir
-    })
-    const devin = result.sessions.filter((session) => session.agent === 'devin')
-    expect(devin.map((session) => session.sessionId)).toEqual(['shown'])
-    expect(devin[0]?.cwd).toBe('/srv/shown')
-    expect(devin[0]?.title).toBe('Shown session')
-    expect(devin[0]?.model).toBe('swe-1-6-fast')
-    expect(devin[0]?.createdAt).toBe(new Date(DEVIN_CREATED_S * 1000).toISOString())
-  })
+  it.each(['transcripts', 'agent_logs'])(
+    'enriches %s sessions by session_id and excludes hidden ones',
+    async (directory) => {
+      const root = await tempDir('orca-devin-scan-')
+      const { transcriptsDir } = await writeDevinVault(root, directory)
+      const result = await scanAiVaultSessions({
+        ...isolatedScanRoots(root),
+        devinTranscriptsDir: transcriptsDir
+      })
+      const devin = result.sessions.filter((session) => session.agent === 'devin')
+      expect(devin.map((session) => session.sessionId)).toEqual(['shown'])
+      expect(devin[0]?.cwd).toBe('/srv/shown')
+      expect(devin[0]?.title).toBe('Shown session')
+      expect(devin[0]?.model).toBe('swe-1-6-fast')
+      expect(devin[0]?.createdAt).toBe(new Date(DEVIN_CREATED_S * 1000).toISOString())
+    }
+  )
 
   it('still lists sessions when sessions.db is absent', async () => {
     const root = await tempDir('orca-devin-scan-')
