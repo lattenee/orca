@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { dirname, join } from 'node:path'
 import { wslGatedStat } from '../native-chat/wsl-transcript-fs-access'
 import { columnExists, tableExists } from '../opencode-usage/schema-helpers'
@@ -41,8 +42,14 @@ const DEVIN_SESSION_OPTIONAL_COLUMNS = [
 const INDEX_CACHE_LIMIT = 8
 const indexCache = new Map<
   string,
-  { mtimeMs: number; sizeBytes: number; index: DevinSessionsIndex }
+  { sidecarPath: string; mtimeMs: number; sizeBytes: number; index: DevinSessionsIndex }
 >()
+const scanDbFailures = new AsyncLocalStorage<Set<string>>()
+
+/** A contended database must cost one timeout per scan, not one per transcript. */
+export function withDevinSessionsDbScan<T>(fn: () => Promise<T>): Promise<T> {
+  return scanDbFailures.run(new Set(), fn)
+}
 
 /**
  * The sessions.db a transcript's index lives in: it sits beside the
@@ -104,8 +111,17 @@ export function devinSessionsIndexForSidecar(sidecar: SessionSidecarObservation 
     return { index: null, unreadable: true }
   }
   const dbPath = devinSessionsDbPathForSidecarPath(sidecar.path)
+  const failures = scanDbFailures.getStore()
+  if (failures?.has(dbPath)) {
+    return { index: null, unreadable: true }
+  }
   const cached = indexCache.get(dbPath)
-  if (cached && cached.mtimeMs === sidecar.mtimeMs && cached.sizeBytes === sidecar.sizeBytes) {
+  if (
+    cached &&
+    cached.sidecarPath === sidecar.path &&
+    cached.mtimeMs === sidecar.mtimeMs &&
+    cached.sizeBytes === sidecar.sizeBytes
+  ) {
     indexCache.delete(dbPath)
     indexCache.set(dbPath, cached)
     return { index: cached.index, unreadable: false }
@@ -119,14 +135,15 @@ export function devinSessionsIndexForSidecar(sidecar: SessionSidecarObservation 
       }
     }
     indexCache.set(dbPath, {
+      sidecarPath: sidecar.path,
       mtimeMs: sidecar.mtimeMs,
       sizeBytes: sidecar.sizeBytes,
       index
     })
     return { index, unreadable: false }
   } catch {
-    // Deliberately uncached: contention is transient, and caching a failure
-    // under an unchanged stat would refuse enrichment until the db moved.
+    // Retry next scan even if the database stat has not changed.
+    failures?.add(dbPath)
     return { index: null, unreadable: true }
   }
 }

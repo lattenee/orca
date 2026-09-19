@@ -100,6 +100,28 @@ describe('agent scan roots from environment overrides', () => {
     vi.resetModules()
   })
 
+  it('finds Devin transcripts in a relocated platform data directory', async () => {
+    const dataDir = join(homedir(), 'relocated-agent-data')
+    const roots = await rootDirsFor('devin', {
+      DEVIN_HOME: '',
+      [process.platform === 'win32' ? 'APPDATA' : 'XDG_DATA_HOME']: dataDir
+    })
+    expect(roots).toEqual([join(dataDir, 'devin', 'cli', 'transcripts')])
+  })
+
+  it('finds Devin transcripts when the platform data variable is empty', async () => {
+    const roots = await rootDirsFor('devin', {
+      DEVIN_HOME: '',
+      APPDATA: '',
+      XDG_DATA_HOME: ''
+    })
+    const dataDir =
+      process.platform === 'win32'
+        ? join(homedir(), 'AppData', 'Roaming')
+        : join(homedir(), '.local', 'share')
+    expect(roots).toEqual([join(dataDir, 'devin', 'cli', 'transcripts')])
+  })
+
   for (const testCase of CASES) {
     describe(testCase.envVar, () => {
       it('uses an absolute override', async () => {

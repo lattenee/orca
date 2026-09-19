@@ -226,6 +226,17 @@ describe('devinSessionsIndexForSidecar', () => {
     expect(unreadable).toBe(true)
   })
 
+  it('invalidates when the observed file changes from db to wal with identical stats', async () => {
+    const dir = await tempDir('orca-devin-db-')
+    const dbPath = join(dir, 'sessions.db')
+    writeDevinSessionsDb(dbPath, [{ id: 'apricot', title: 'old' }])
+    const observation = await sidecarOf(dbPath)
+    expect(devinSessionsIndexForSidecar(observation).index?.get('apricot')?.title).toBe('old')
+    writeDevinSessionsDb(dbPath, [{ id: 'apricot', title: 'new' }])
+    const updated = devinSessionsIndexForSidecar({ ...observation, path: `${dbPath}-wal` })
+    expect(updated.index?.get('apricot')?.title).toBe('new')
+  })
+
   it('opens the db for a wal observation and re-reads when the wal stat moves', async () => {
     const dir = await tempDir('orca-devin-db-')
     const dbPath = join(dir, 'sessions.db')
