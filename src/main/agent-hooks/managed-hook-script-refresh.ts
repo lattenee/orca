@@ -57,6 +57,19 @@ async function writeScriptWithAclRetry(scriptPath: string, content: string): Pro
   }
 }
 
+// Why (#21514): a launcher's {} fallback can outlive its payload — a refresh that only
+// rewrites existing files would leave the dead mask in place. Restore the sibling through
+// the same atomic tmp+rename path, staying off the main thread like the refresher above.
+export async function restoreManagedScript(scriptPath: string, content: string): Promise<void> {
+  const tmpPath = join(dirname(scriptPath), `.${Date.now()}-${randomUUID()}.tmp`)
+  try {
+    await writeScriptWithAclRetry(tmpPath, content)
+    await rename(tmpPath, scriptPath)
+  } finally {
+    await rm(tmpPath, { force: true }).catch(() => undefined)
+  }
+}
+
 // Why: refresh must not block Electron's main thread or create state for an absent CLI.
 export async function refreshManagedScriptIfPresent(
   scriptPath: string,

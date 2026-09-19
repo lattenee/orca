@@ -309,8 +309,9 @@ describe('Windows managed hook stdin structure', () => {
 
       // Why (#11549): the Devin skip is the only remaining in-script jump to more.com, so it
       // must sit below the env guards — otherwise a Devin session outside an Orca pane still
-      // parks there and strands the hook exactly like the pre-fix guards did.
-      const claude = readFileSync(join(hooksDir, 'claude-hook.cmd'), 'utf8')
+      // parks there and strands the hook exactly like the pre-fix guards did. The guard lives
+      // in the impl sibling the registered claude-hook.cmd launcher delegates to (#21514).
+      const claude = readFileSync(join(hooksDir, 'claude-hook-impl.cmd'), 'utf8')
       expect(claude, 'claude devin guard present').toContain(
         'if not "%DEVIN_PROJECT_DIR%"=="" goto :orca_agent_hook_drain_stdin'
       )
