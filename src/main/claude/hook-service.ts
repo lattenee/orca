@@ -14,6 +14,7 @@ import {
   writeManagedScriptRemote
 } from '../agent-hooks/installer-utils-remote'
 import {
+  managedScriptExists,
   refreshManagedScriptIfPresent,
   restoreManagedScript
 } from '../agent-hooks/managed-hook-script-refresh'
@@ -122,18 +123,21 @@ export class ClaudeHookService {
       skipWhenGrokImportsClaude: this.options.agent === 'claude'
     })
     if (process.platform === 'win32' && this.options.settings.usesWindowsCompatLauncher) {
+      const scriptPath = getManagedScriptPath(this.options.settings)
       const implPath = getManagedImplScriptPath(this.options.settings)
-      const launcherPresent = await refreshManagedScriptIfPresent(
-        getManagedScriptPath(this.options.settings),
-        getManagedWindowsLauncherScript(getManagedImplScriptFileName(this.options.settings))
-      )
       const implPresent = await refreshManagedScriptIfPresent(implPath, payload)
+      const launcherPresent = await managedScriptExists(scriptPath)
       // Why (#21514): a launcher without its impl answers {} for every event —
-      // healthy-looking but dead. A present launcher marks a managed install,
-      // so restore the impl rather than leaving the mask in place.
+      // healthy-looking but dead. The impl must land before the launcher is
+      // rewritten, or a pre-launcher install is observed — and stranded, if the
+      // impl write fails — in exactly that masked state.
       if (launcherPresent && !implPresent) {
         await restoreManagedScript(implPath, payload)
       }
+      await refreshManagedScriptIfPresent(
+        scriptPath,
+        getManagedWindowsLauncherScript(getManagedImplScriptFileName(this.options.settings))
+      )
     } else {
       await refreshManagedScriptIfPresent(getManagedScriptPath(this.options.settings), payload)
     }

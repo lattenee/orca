@@ -154,6 +154,18 @@ describe.skipIf(process.platform !== 'win32')('direct hook command, run by both 
     })
   })
 
+  it.skipIf(!canRunLive)('propagates a nonzero impl exit status in both hosts', () => {
+    // Why: `exit /b 0` after `call` would mask a failing impl the same way the old
+    // `|| echo {}` masked a spawn failure — the launcher's contract is to forward it.
+    withTempDir((dir, scriptPath, command) => {
+      writeFileSync(scriptPath, getManagedWindowsLauncherScript('claude-hook-impl.cmd'), 'utf8')
+      writeFileSync(join(dir, 'claude-hook-impl.cmd'), '@echo off\r\nexit /b 7\r\n', 'utf8')
+      for (const result of [runInCmd(command, dir), runInBash(command, dir)]) {
+        expect(result.status).toBe(7)
+      }
+    })
+  })
+
   it.skipIf(!canRunLive)(
     'answers {} and exit 0 in both hosts when the impl is missing (#14818)',
     () => {

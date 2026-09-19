@@ -28,7 +28,9 @@ async function readExistingScript(scriptPath: string): Promise<ExistingScript> {
   }
 }
 
-async function scriptStillExists(scriptPath: string): Promise<boolean> {
+// Why: presence probe for ordering decisions — the service must know a launcher exists
+// before deciding whether the impl has to land first, without writing anything.
+export async function managedScriptExists(scriptPath: string): Promise<boolean> {
   try {
     await stat(scriptPath)
     return true
@@ -92,7 +94,7 @@ export async function refreshManagedScriptIfPresent(
     if (process.platform !== 'win32') {
       await chmod(tmpPath, 0o755)
     }
-    if (!(await scriptStillExists(scriptPath))) {
+    if (!(await managedScriptExists(scriptPath))) {
       return false
     }
     await rename(tmpPath, scriptPath)
