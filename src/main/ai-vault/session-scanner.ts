@@ -6,7 +6,7 @@ import type {
 import { LOCAL_EXECUTION_HOST_ID, type ExecutionHostId } from '../../shared/execution-host'
 import { withSpan } from '../observability/tracer'
 import { sessionSortTime } from './session-scanner-accumulator'
-import { CodexSessionCollection, dedupeCodexSessionsBySessionId } from './codex-session-root-dedup'
+import { ScannedSessionCollection, dedupeScannedSessions } from './session-root-dedup'
 import {
   createAntigravityWorkspaceResolver,
   readLocalAntigravityHistory,
@@ -94,7 +94,7 @@ export async function scanAiVaultSessions(
           antigravityWorkspaceResolver
         })
 
-        const cappedSessions = dedupeCodexSessionsBySessionId(parsedSessions)
+        const cappedSessions = dedupeScannedSessions(parsedSessions)
           .sort((left, right) => sessionSortTime(right) - sessionSortTime(left))
           .slice(0, limit)
 
@@ -215,7 +215,7 @@ async function parseSessionCandidates(args: {
   signal?: AbortSignal
   antigravityWorkspaceResolver?: AntigravityWorkspaceResolver
 }): Promise<AiVaultSession[]> {
-  const sessions = new CodexSessionCollection()
+  const sessions = new ScannedSessionCollection()
   let index = 0
 
   while (index < args.candidates.length) {
