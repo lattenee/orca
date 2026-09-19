@@ -296,7 +296,7 @@ describe('Windows managed hook stdin structure', () => {
         expect(script, `${fileName} no ORCA_* guard may route to the more.com drain`).not.toMatch(
           /ORCA_[A-Z_]+.*goto :?orca_agent_hook_drain_stdin/
         )
-        // Why: the epilogue stays shared — claude-hook.cmd still jumps to it from the
+        // Why: the epilogue stays shared — claude-hook-impl.cmd still jumps to it from the
         // Devin-imports-.claude skip, which now sits below these guards.
         expect(script, `${fileName} drain epilogue`).toContain(
           [
